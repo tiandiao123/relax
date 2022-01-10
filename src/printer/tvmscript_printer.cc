@@ -33,6 +33,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/te/tensor.h>
 
 #include <algorithm>
 #include <utility>
@@ -517,6 +518,10 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintMatchBufferRegion(node.as<MatchBufferRegionNode>());
   } else if (node->IsInstance<CommReducerNode>()) {
     return PrintCommReducer(node.as<CommReducerNode>());
+  } else if (node->IsInstance<tvm::te::TensorNode>()) {
+    Doc doc;
+    doc << "te.Tensor";
+    return doc;
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
     return Doc();

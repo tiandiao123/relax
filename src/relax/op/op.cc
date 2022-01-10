@@ -61,7 +61,12 @@ Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.call_dps");
   Call call = Call(op, {shape, func, args}, {}, {});
   call->shape_ = shape;
-  call->checked_type_ = args->fields[0]->checked_type_;
+  // TODO (@yuchen): make checked_type_ right
+  if (!args->fields.empty()) {
+    call->checked_type_ = args->fields[0]->checked_type_;
+  } else {
+    call->checked_type_ = DynTensorType(-1, DataType::Float(32));
+  }
   return call;
 }
 

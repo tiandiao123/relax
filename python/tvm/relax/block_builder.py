@@ -16,6 +16,7 @@
 # under the License.
 """Developer API of constructing Relax AST."""
 import typing
+import tvm
 from typing import List, Optional, Union, Dict, Any, Callable
 from tvm.relay.expr import Tuple
 from tvm.runtime import Object
@@ -124,6 +125,9 @@ class BlockBuilder(Object):
     def __init__(self):
         self._blocks = []
         self._context_mod = tvm.IRModule()
+        # a dict to store the mapping of the structrual_hash of prim_func in _context_mod to its GlobalVar
+        # to avoid generating duplicated PrimFuncs
+        self._prim_func_map = {}
         # a boolean flag that tracks if emit_func_output has been called
         self._is_emit_func_output_called = False;
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
@@ -187,7 +191,7 @@ class BlockBuilder(Object):
                 for key in arg:
                     assert isinstance(key, str), "emit_te only supports dict with string as the key currently"
                 return {k: _convert_te_arg_helper(arg[k]) for k in arg}
-            elif isinstance(arg, (int, float, str)):
+            elif isinstance(arg, (int, float, str, tir.IntImm)) or arg is None:
                 return arg
             else:
                 raise TypeError("not supported type in emit_te: {}".format(type(arg)))
@@ -261,22 +265,22 @@ class BlockBuilder(Object):
         """
         return DataflowScope(self)
 
-    def emit(self, call: relay.Call) -> Var:
-        """Emit a call node.
-        This infers the shape and type of the CallNode, create a variable,
-        and bind the CallNode to the variable.
+    def emit(self, expr: relay.Expr) -> Var:
+        """Emit an Expr.
+        This infers the shape and type of the expr, create a variable,
+        and bind the expr to the variable.
 
         Parameters
         ----------
-        call : tvm.relax.Call
-            The call node to be emitted.
+        call : tvm.relax.Expr
+            The Expr to be emitted.
 
         Returns
         -------
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
         """
-        return _ffi_api.BlockBuilderEmit(self, call)
+        return _ffi_api.BlockBuilderEmit(self, expr)
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
@@ -356,10 +360,15 @@ class BlockBuilder(Object):
 
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
-        func_name = self.get_unique_name(func.__name__)
-        tir_func = tir_func.with_attr("global_symbol", func_name)
-        gvar = GlobalVar(func_name)
-        self._context_mod[gvar] = tir_func
+        tir_func_hash = tvm.ir.structural_hash(tir_func)
+        if (tir_func_hash in self._prim_func_map):
+            gvar = self._prim_func_map[tir_func_hash]
+        else:
+            func_name = self.get_unique_name(func.__name__)
+            tir_func = tir_func.with_attr("global_symbol", func_name)
+            gvar = GlobalVar(func_name)
+            self._prim_func_map[tir_func_hash] = gvar
+            self._context_mod[gvar] = tir_func
         call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
         return self.emit(call)
 

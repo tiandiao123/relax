@@ -3770,3 +3770,47 @@ def batch_to_space_nd(data, block_shape, crops):
     """
 
     return _make.batch_to_space_nd(data, block_shape, crops)
+
+
+def embedding(table, indices):
+     """Lookup indices in an embedding table.
+     The embedding lookup is defined as:
+     .. math::
+         O[i,j] = T[I[i],j]
+     where :math:`T` is the embedding table, and :math:`I` is the indices to
+     lookup. This is specialization of take with two dimensional input and axis
+     = 0.
+     Parameters
+     ----------
+     table : relay.Expr
+         M x N tensor of embedding locations.
+     indices : relay.Expr
+         Length K vector of indices to lookup in `table`.
+     Returns
+     -------
+     Output : relay.Expr
+         K x N tensor corresponding to the rows of `table` indexed with `indices`.
+     """
+     return _make.embedding(table, indices)
+
+
+def embedding_grad(table, indices, grad):
+    """Gradient of :py:func:`embedding`.
+    The gradient of an embedding lookup is defined as:
+    .. math::
+        O[I[i],j] = G[i, j]
+    where :math:`G` is the gradient, and :math:`I` is the indices to lookup.
+    Parameters
+    ----------
+    table : relay.Expr
+        M x N tensor of embedding locations.
+    indices : relay.Expr
+        Length K vector of indices to lookup in `table`.
+    grad : relay.Expr
+        K x N tensor of the gradient to propagate.
+    Returns
+    -------
+    Output : relay.Expr
+        K x N tensor containing the propagated gradient.
+    """
+    return _make.embedding_grad(table, indices, grad)
